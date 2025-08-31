@@ -421,104 +421,35 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # ── Реєстрація та запуск ──────────────────────────────────────────────────────
-def main():
-    app = Application.builder().token(TOKEN).build()
+from telegram.ext import Application, Update
+
+def build_app(token: str) -> Application:
+    app = Application.builder().token(token).build()
+
+    # === тут треба зареєструвати усі твої хендлери, що були у main() ===
     app.add_error_handler(on_error)
     app.add_handler(TypeHandler(Update, log_every_update), group=-1)
-
-    # --- Корисні Regex для адмін-кнопок (витримують емодзі і регістр) ---
-    re_add     = re.compile(r"^\s*(?:⚙️\ufe0f?\s*)?додати\s+об['’]єкт\s*$", re.IGNORECASE)
-    re_del     = re.compile(r"^\s*(?:🗑\ufe0f?\s*)?видалити\s+об['’]єкт\s*$", re.IGNORECASE)
-    re_cap     = re.compile(r"^\s*(?:✏️\ufe0f?\s*)?змінити\s+бак\s*$", re.IGNORECASE)
-    re_usage   = re.compile(r"^\s*(?:🔧\ufe0f?\s*)?витрата\s+л/год\s*$", re.IGNORECASE)
-
-    # --- Розмови ---
-    conv_new = ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex(r"^\s*➕\s*Нові показники\s*$"), new_data_start),
-                      MessageHandler(filters.Regex(r"(?i)^\s*/new$"), new_data_start)],
-        states={
-            ENTER_OBJECT_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_object_id)],
-            ENTER_ENGINE_HOURS: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_engine_hours)],
-            ENTER_FUEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_fuel)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
-
-    conv_add = ConversationHandler(
-        entry_points=[
-            MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(re_add), add_object_start),
-            MessageHandler(filters.Regex(r"(?i)^\s*/add$"), add_object_start)
-        ],
-        states={
-            ENTER_NEW_OBJECT_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_new_object_id)],
-            ENTER_NEW_CAPACITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_new_object)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
-
-    conv_del = ConversationHandler(
-        entry_points=[
-            MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(re_del), delete_object_start),
-            MessageHandler(filters.Regex(r"(?i)^\s*/del$"), delete_object_start)
-        ],
-        states={ENTER_DELETE_OBJECT_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_delete_object)]},
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
-
-    conv_cap = ConversationHandler(
-        entry_points=[
-            MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(re_cap), update_capacity_start),
-            MessageHandler(filters.Regex(r"(?i)^\s*/capacity$"), update_capacity_start)
-        ],
-        states={
-            ENTER_UPDATE_OBJECT_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_update_object_id)],
-            ENTER_UPDATE_CAPACITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_update_capacity)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
-
-    conv_usage = ConversationHandler(
-        entry_points=[
-            MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(re_usage), update_usage_start),
-            MessageHandler(filters.Regex(r"(?i)^\s*/usage$"), update_usage_start)
-        ],
-        states={
-            ENTER_UPDATE_USAGE_OBJECT_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_update_usage_object)],
-            ENTER_UPDATE_USAGE_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_update_usage)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
-
-    conv_single_report = ConversationHandler(
-        entry_points=[
-            MessageHandler(filters.Regex(r"^\s*📊\s*Звіт по об['’]єкту\s*$"), single_report_start),
-            MessageHandler(filters.Regex(r"(?i)^\s*/reportone$"), single_report_start),
-        ],
-        states={
-            ENTER_REPORT_OBJECT_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, single_report_show)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
-
-    # --- Базові команди/кнопки ---
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.Regex(r"^\s*📊\s*Звіт\s*$"), report))
-    app.add_handler(MessageHandler(filters.Regex(r"^\s*🔻\s*Недозаправка\s*$"), shortage_report))
-
-    # --- Розмови/діалоги ---
     app.add_handler(conv_new)
     app.add_handler(conv_add)
     app.add_handler(conv_del)
     app.add_handler(conv_cap)
     app.add_handler(conv_usage)
     app.add_handler(conv_single_report)
-
-    # --- Глобальний ловильник інлайн-кнопок (повний бак / ні) ---
+    app.add_handler(MessageHandler(filters.Regex(r"^\s*📊\s*Звіт\s*$"), report))
+    app.add_handler(MessageHandler(filters.Regex(r"^\s*🔻\s*Недозаправка\s*$"), shortage_report))
     app.add_handler(CallbackQueryHandler(confirm_full_tank, pattern="^(full_yes|full_no)$"))
 
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    return app
+
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+    import os
+    load_dotenv()
+    TOKEN = os.getenv("BOT_TOKEN")
     if not TOKEN:
         raise RuntimeError("BOT_TOKEN не задано у .env")
-    main()
+    app = build_app(TOKEN)
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
+
