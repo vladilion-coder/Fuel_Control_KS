@@ -1,0 +1,6 @@
+python-telegram-bot==20.6
+gspread
+oauth2client
+python-dotenv
+pytz
+httpx~=0.25.0
