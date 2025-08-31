@@ -17,7 +17,6 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive",
 ]
 
-#CREDS = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", SCOPES)
 CREDS = ServiceAccountCredentials.from_json_keyfile_name("/etc/secrets/credentials.json", SCOPES)
 CLIENT = gspread.authorize(CREDS)
 
